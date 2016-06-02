@@ -1,46 +1,35 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
-from functions import nextpower, ascii_to_nparray, plot_radargrams
+from functions import *
 
-def time_zero (path, filename, t0=0.0):
-	"""Place the initial time of your radargrams at t0
-	create a new ascii file in path"""
-	
-	data = ascii_to_nparray(path, filename)
-	data = data.T
-	new_name = filename.replace('.ASC', '_zero.ASC')
-	f = open('%s%s' %(path,new_name), 'wb')
-	
-	dt = 0.018654
-	iterations, traces = data.shape
+def time_zero (data, dtdx, t0=0.0):
+	"""Place the initial time of your radargrams at t0 """
+
+	dt, dx = dtdx
+	iterations, taces = data.shape
 	t = np.linspace(0, 1, iterations) * (iterations * dt)
-	index = 0	
-	while t0 > t[index]: index += 1
-	np.savetxt(f,data[index:].astype(int),fmt='%d', delimiter = '  ', newline='\n')
-		
 	
-def user_gain (path, filename, gain='', start=0.0, stop=0.0):
+	index = 0	
+	while t0*1e-9 > t[index]: 
+		index += 1
+	
+	return data[index:]
+		
+def user_gain (data, dtdx, gain='', start=0.0, stop=0.0):
 	"""Add a user defined gain chosen beetween {'constant', 'linear', 'enxponential'} on data.
 	start and stop define the number of traces you want modify.
-	create a new ascii file gained in path.
 	"""
-	data = ascii_to_nparray(path, filename)
-	data = data.T
-	new_name = filename.replace('.ASC', '_%s.ASC' % gain)
-	f = open('%s%s' %(path,new_name), 'wb')
-	
-	# init essential items
-	dt = 0.018654
-	dx = 0.00667
+	dt, dx = dtdx
 	iterations, traces = data.shape
 	t = np.linspace(0, 1, iterations) * (iterations * dt)
 	
 	width = stop - start
 	
 	if gain == 'constant':
-		check = input('Please enter a constant value : ')
-		constant = float(check)
+		#check = input('Please enter a constant value : ')
+		#constant = float(check)
+		constant = 4
 		fgain = [constant]*width
 		
 	elif gain == 'linear':
@@ -58,37 +47,32 @@ def user_gain (path, filename, gain='', start=0.0, stop=0.0):
 		
 	for model in range(traces):
 		data[start:stop, model] *= np.array(fgain, dtype=data.dtype)
-	
-	np.savetxt(f,data.astype(int),fmt='%d', delimiter = '  ', newline='\n')
-		
 
-def velocity_analysis (data, x0, t0, v, r, start, stop):
+def velocity_analysis (data, dtdx, param, start, stop):
 	"""
 	Plot the radargram along with the hyperbolic function initialized by x0,t0,c and r.
 	"""
-	#data = data.T
-	traces = data.shape[1]
-	
-	dx = 0.00667 
+
+	traces = data.shape[1]	
+	dx = dtdx[1]
+	x0, t0, v, r = param
 	z0 = (t0 * v + 2 * r) / 2
 	x = np.linspace(0, 1, traces) * (traces * dx)
-	hyperbol =  (2 / v) * (np.sqrt((x0-x[start:stop])**2 + z0**2) - r) 
+	v *= 1e9
 	
+	hyperbol =  (2 / v) * (np.sqrt((x0-x[start:stop])**2 + z0**2) - r) 
 	
 	fig = plt.figure(num='radargrams', figsize=(20, 10), facecolor='w', edgecolor='w')
 	plt.plot(x[start:stop], hyperbol)
-	plot_radargrams(data)
+	plot_radargrams(data, dtdx)
+	
+def stolt_migration(data, param):
 	
 	
-def stolt_migration(data, params):
-	
-	#data = data.T
-	"""dt = 0.018654
-	dx = 0.00667"""
-	dx = params[0]
-	dt = params[1]*1e9
+	dx = param[1]
+	dt = param[0]*1e9
 	fs = 1/dt
-	c = 0.15
+	c = param[2]
 
 
 	nt0, nx0 = data.shape
@@ -99,7 +83,7 @@ def stolt_migration(data, params):
 	nt = 2 * nextpower(nt0)
 	nx = 2 * nx0
 
-	ERMv = c / np.sqrt(2)
+	ERMv = c / 2 # One Emiter-Receiver scenario
 
 	fftRF = np.fft.fftshift(np.fft.fft2(data, s=(nt,nx)))
 
