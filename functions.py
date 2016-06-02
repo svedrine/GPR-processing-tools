@@ -1,16 +1,16 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import h5py
 
-def plot_radargrams (data):
+def plot_radargrams (data, params):
 	
-	iterations, traces = data.shape
-	dt = 0.018654
-	dx = 0.00667 
+	dx, dt, traces, iterations = params
 	t = np.linspace(0, 1, iterations) * (iterations * dt)
-	positions = np.linspace(0, 1, traces) * (traces * dx)
+	x = np.linspace(0, 1, traces) * (traces * dx)	
 	
-	plt.imshow(data, extent=[np.amin(positions), np.amax(positions), np.amax(t), 0], interpolation='nearest', aspect='auto', cmap='seismic', vmin=-np.amax(abs(data)), vmax=np.amax(abs(data)))
-	
+	plt.imshow(data, extent=[np.amin(x), np.amax(x), np.amax(t), np.amin(t)], interpolation='nearest', aspect='auto', cmap='seismic', vmin=-np.amax(abs(data)), vmax=np.amax(abs(data)))
 	plt.show()
+	
 def nextpower (n, base=2.0):
     """Return the next integral power of two greater than the given number.
     Specifically, return m such that
@@ -43,8 +43,20 @@ def ascii_to_nparray (path, filename):
 	return np.array(data)
 
 
-def convert_hdf5 (filename):
-	""" Convert an hf5py data file into ascii file.
-	"""
-	return 0.0
+def convert_hdf5 (path, filename):
+	""" Convert an h5py data file into ascii file. """
+	
+	f = h5py.File('%s%s' % (path, filename), 'r')
+	path = '/rxs/rx1/'
+	modelruns = f.attrs['Modelruns']
+	iterations = f.attrs['Iterations'] 
+	dt = f.attrs['dt']
+	positions = f.attrs['Positions'][:,0,0]
+	dx = np.diff(positions)[0]
+	data = np.ones((iterations, modelruns))
+	for model in range(modelruns):
+		data[:,model] = f['%s%s' % (path, 'Ez')][:,model]
+	params = (dx, dt, modelruns, iterations) 
+	
+	return data, params
 
