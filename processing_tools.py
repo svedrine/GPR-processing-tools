@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp2d
+from scipy.interpolate import griddata
 from functions import nextpower, ascii_to_nparray, plot_radargrams
 
 def time_zero (path, filename, t0=0.0):
@@ -17,7 +17,6 @@ def time_zero (path, filename, t0=0.0):
 	t = np.linspace(0, 1, iterations) * (iterations * dt)
 	index = 0	
 	while t0 > t[index]: index += 1
-	print(t0)
 	np.savetxt(f,data[index:].astype(int),fmt='%d', delimiter = '  ', newline='\n')
 		
 	
@@ -67,7 +66,7 @@ def velocity_analysis (data, x0, t0, v, r, start, stop):
 	"""
 	Plot the radargram along with the hyperbolic function initialized by x0,t0,c and r.
 	"""
-	data = data.T
+	#data = data.T
 	traces = data.shape[1]
 	
 	dx = 0.00667 
@@ -81,48 +80,43 @@ def velocity_analysis (data, x0, t0, v, r, start, stop):
 	plot_radargrams(data)
 	
 	
-def stolt_migration (data):
+def stolt_migration(data, params):
 	
-	data = data.T
-	dt = 0.018654
-	dx = 0.00667
+	#data = data.T
+	"""dt = 0.018654
+	dx = 0.00667"""
+	dx = params[0]
+	dt = params[1]*1e9
 	fs = 1/dt
-	c = 0.25
+	c = 0.15
 
-	t = np.linspace(0,1024*dt,1024) 
-	x = np.linspace(0,610*dx,610)
 
 	nt0, nx0 = data.shape
-
+	
+	t = np.linspace(0,nt0*dt,nt0) 
+	x = np.linspace(0,nx0*dx,nx0)
+	
 	nt = 2 * nextpower(nt0)
 	nx = 2 * nx0
 
-	ERMv = c 
+	ERMv = c / np.sqrt(2)
 
 	fftRF = np.fft.fftshift(np.fft.fft2(data, s=(nt,nx)))
 
 	f = np.linspace(-nt/2, nt/2-1, nt) * fs / nt 
-	kx = np.linspace(-nx/2,nx/2-1, nx) / dx / nx 
+	kx = np.linspace(-nx/2,nx/2-1, nx) / dx / nx
 	
-	real = interp2d(kx, f, fftRF.real, 'linear')
-	imag = interp2d(kx, f, fftRF.imag, 'linear')	
+	KX, F = np.meshgrid(kx, f)
+	fkz = ERMv*np.sign(F)*np.sqrt(KX**2 + F**2/ERMv**2)
 	
-	kx, f = np.meshgrid(kx, f)
-	
-	fkz = ERMv*np.sign(f)*np.sqrt(kx**2 + f**2/ERMv**2)
-	print(fkz)
-	"""for row in range(nx):
-		fftRF[row,:].real = real(kx[0,:], fkz[row,:])[row,:]
-		fftRF[row,:].imag = imag(kx[0,:], fkz[row,:])[row,:]"""
-	
+	# interpolate onto the new grid
+	fftRF = griddata((KX.ravel(), F.ravel()), fftRF.ravel(), (KX, fkz), method='nearest')
 	
 	
 	migRF = np.fft.ifft2(np.fft.ifftshift(fftRF))
 	migRF = migRF[1:nt0,1:nx0]
 	
 	fig = plt.figure(num='', figsize=(20, 10), facecolor='w', edgecolor='w')
-	plt.imshow(abs(fkz), extent=[np.amin(x), np.amax(x), np.amax(t), 0], interpolation='nearest', aspect='auto', cmap='seismic', vmin=-np.amax(abs(fkz)), vmax=np.amax(abs(fkz)))
+	plt.imshow(abs(migRF), extent=[np.amin(x), np.amax(x), np.amax(t), np.amin(t)], interpolation='nearest', aspect='auto', cmap='seismic', vmin=-np.amax(abs(migRF)), vmax=np.amax(abs(migRF)))
 	plt.show()
 	
-	return 0.0
-
