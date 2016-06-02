@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 
-def plot_radargrams (data, params):
+def plot_radargrams (data, dtdx):
 	
-	dx, dt, traces, iterations = params
+	dt, dx = dtdx
+	iterations, traces = data.shape
 	t = np.linspace(0, 1, iterations) * (iterations * dt)
 	x = np.linspace(0, 1, traces) * (traces * dx)	
 	
@@ -25,7 +26,7 @@ def nextpower (n, base=2.0):
     else:
         return int (x)
 
-def ascii_to_nparray (path, filename):
+def read_ascii (path, filename):
 	"""
 	Comments
 	"""
@@ -40,10 +41,11 @@ def ascii_to_nparray (path, filename):
 		data.append(list(map(int, mylist[row].split())))
 	f.close()
 	
-	return np.array(data)
+	dtdx = (0.0185, 0.00667)
+	
+	return np.array(data), dtdx
 
-
-def convert_hdf5 (path, filename):
+def read_hdf5 (path, filename):
 	""" Convert an h5py data file into ascii file. """
 	
 	f = h5py.File('%s%s' % (path, filename), 'r')
@@ -56,7 +58,7 @@ def convert_hdf5 (path, filename):
 	data = np.ones((iterations, modelruns))
 	for model in range(modelruns):
 		data[:,model] = f['%s%s' % (path, 'Ez')][:,model]
-	params = (dx, dt, modelruns, iterations) 
+	dtdx = (dt, dx)
 	
-	return data, params
+	return data, dtdx
 
