@@ -11,7 +11,7 @@ def time_zero (data, dtdx, t0=0.0):
 	t = np.linspace(0, 1, iterations) * (iterations * dt)
 	
 	index = 0	
-	while t0*1e-9 > t[index]: 
+	while t0 > t[index]: 
 		index += 1
 	
 	return data[index:]
@@ -58,7 +58,6 @@ def velocity_analysis (data, dtdx, param, start, stop):
 	x0, t0, v, r = param
 	z0 = (t0 * v + 2 * r) / 2
 	x = np.linspace(0, 1, traces) * (traces * dx)
-	v *= 1e9
 	
 	hyperbol =  (2 / v) * (np.sqrt((x0-x[start:stop])**2 + z0**2) - r) 
 	
@@ -68,39 +67,46 @@ def velocity_analysis (data, dtdx, param, start, stop):
 	
 def stolt_migration(data, param):
 	
-	
+	# parameters
 	dx = param[1]
-	dt = param[0]*1e9
+	dt = param[0]
 	fs = 1/dt
-	c = param[2]
-
-
-	nt0, nx0 = data.shape
 	
+	nt0, nx0 = data.shape
 	t = np.linspace(0,nt0*dt,nt0) 
 	x = np.linspace(0,nx0*dx,nx0)
 	
+	# Zero-padding
 	nt = 2 * nextpower(nt0)
 	nx = 2 * nx0
+	
+	# One Emiter-Receiver scenario
+	c = param[2]
+	ERMv = c / 2
+	
+	# FFT & shift 
+	fftdata = np.fft.fftshift(np.fft.fft2(data, s=(nt,nx)))
 
-	ERMv = c / 2 # One Emiter-Receiver scenario
-
-	fftRF = np.fft.fftshift(np.fft.fft2(data, s=(nt,nx)))
-
+	# Linear interpolation
 	f = np.linspace(-nt/2, nt/2-1, nt) * fs / nt 
 	kx = np.linspace(-nx/2,nx/2-1, nx) / dx / nx
+	kx, f = np.meshgrid(kx, f)
 	
-	KX, F = np.meshgrid(kx, f)
-	fkz = ERMv*np.sign(F)*np.sqrt(KX**2 + F**2/ERMv**2)
+	# Remapping
+	fkz = ERMv*np.sign(f)*np.sqrt(kx**2 + f**2/ERMv**2)
+	fftdata = griddata((kx.ravel(), f.ravel()), fftdata.ravel(), (kx, fkz), method='nearest')
 	
-	# interpolate onto the new grid
-	fftRF = griddata((KX.ravel(), F.ravel()), fftRF.ravel(), (KX, fkz), method='nearest')
+	# Jacombien
+	eps = 1e-4
+	fftdata *= f / (np.sqrt(kx**2 + f**2/ERMv**2)+eps)
 	
+	# IFFT & Migrated RF
+	mig = np.fft.ifft2(np.fft.ifftshift(fftdata))
+	mig = mig[1:nt0,1:nx0]
 	
-	migRF = np.fft.ifft2(np.fft.ifftshift(fftRF))
-	migRF = migRF[1:nt0,1:nx0]
+	z = t*c / 2
 	
 	fig = plt.figure(num='', figsize=(20, 10), facecolor='w', edgecolor='w')
-	plt.imshow(abs(migRF), extent=[np.amin(x), np.amax(x), np.amax(t), np.amin(t)], interpolation='nearest', aspect='auto', cmap='seismic', vmin=-np.amax(abs(migRF)), vmax=np.amax(abs(migRF)))
+	plt.imshow(abs(mig), extent=[np.amin(x), np.amax(x), np.amax(z), np.amin(z)], interpolation='nearest', aspect='auto', cmap='seismic', vmin=-np.amax(abs(mig)), vmax=np.amax(abs(mig)))
 	plt.show()
 	
