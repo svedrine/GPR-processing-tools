@@ -1,15 +1,21 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
+import binascii
 
-def plot_radargrams (data, dtdx):
+
+def plot_radargrams (data, dx_dt, title):
 	
-	dt, dx = dtdx
+	dx, dt = dx_dt
 	iterations, traces = data.shape
 	t = np.linspace(0, 1, iterations) * (iterations * dt)
 	x = np.linspace(0, 1, traces) * (traces * dx)	
 	
+	fig = plt.figure(num=title, figsize=(20, 10), facecolor='w', edgecolor='w')
 	plt.imshow(data, extent=[np.amin(x), np.amax(x), np.amax(t), np.amin(t)], interpolation='nearest', aspect='auto', cmap='seismic', vmin=-np.amax(abs(data)), vmax=np.amax(abs(data)))
+	plt.xlabel('Distance [m]')
+	plt.ylabel('Two-way travel time [ns]')
+	
 	plt.show()
 	
 def nextpower (n, base=2.0):
@@ -41,9 +47,9 @@ def read_ascii (path, filename):
 		data.append(list(map(int, mylist[row].split())))
 	f.close()
 	
-	dtdx = (0.0185, 0.00667)
+	dx_dt = (0.0185, 0.00667)
 	
-	return np.array(data), dtdx
+	return np.array(data).T, dx_dt
 
 def read_hdf5 (path, filename):
 	""" Convert an h5py data file into ascii file. """
@@ -52,13 +58,48 @@ def read_hdf5 (path, filename):
 	path = '/rxs/rx1/'
 	modelruns = f.attrs['Modelruns']
 	iterations = f.attrs['Iterations'] 
-	dt = f.attrs['dt']
+	dt = f.attrs['dt']*1e9
 	positions = f.attrs['Positions'][:,0,0]
 	dx = np.diff(positions)[0]
 	data = np.ones((iterations, modelruns))
 	for model in range(modelruns):
 		data[:,model] = f['%s%s' % (path, 'Ez')][:,model]
-	dtdx = (dt, dx)
+	traces = modelruns	
+	dx_dt = (iterations, traces, dx, dt)
 	
-	return data, dtdx
+	return data, dx_dt
+
+def read_rd3 (path, filename):
+	
+	f = open('%s%s' % (path, filename), 'rb').read()
+	f.decode("latin-1")
+	
+	data = np.array(np.fromstring(f, dtype= 'int16'))
+	traces = int(np.shape(data)[0] / 1024)
+	data = data.reshape((traces, 1024))
+	
+	return data.T
+	
+def read_header(path, filename):
+	
+	""" return dt (ns) and dx (m) """
+	
+	f = open('%s%s' %(path, filename), 'r')
+	mylist = f.read().split('\n')
+	
+	iterations = int(mylist[0].split(':')[1])
+	frequency = float(mylist[1].split(':')[1])*1e-3
+	traces = int(mylist[22].split(':')[1])
+	position = float(mylist[23].split(':')[1])
+	
+	dt = 1 / frequency
+	dx = position / traces
+	
+	return (dx, dt)
+	
+
+
+
+
+
 
