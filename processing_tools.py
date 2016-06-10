@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import griddata
+from scipy.interpolate import griddata, SmoothBivariateSpline
+
 from functions import *
 
 
@@ -10,10 +11,26 @@ def dewow_filtering(data, dx_dt, time_window):
 	iterations, traces = data.shape
 	t = np.linspace(0, 1, iterations) * (dt * iterations)
 	width = int(time_window / dt)
-	
-	for trace in traces:
-		index = 0
+	half_width = int(width / 2)
+	temp = np.ones((iterations, traces))
+	temp *= data
+	for trace in range(traces):
+		for index in range(iterations):
+			if index < half_width:
+				data[index,trace] += -np.mean(abs(temp[:index + half_width, trace]))
+				
+			elif index > (iterations - half_width):
+				data[index,trace] += -np.mean(abs(temp[index-half_width:]))
+			else:
+				data[index,trace] += -np.mean(abs(temp[index-half_width:index+half_width, trace]))
+				
+	return data
 		
+def dc_substraction (data):
+	return data - np.mean(abs(data[int(0.67*len(data))]))	
+	
+def cut_off_frequency(data, bandwidth):
+	return 0
 	
 def time_zero (data, dx_dt, t0=0.0):
 	"""Reshape start time of your radargrams at t0 """
@@ -74,7 +91,7 @@ def velocity_analysis (data, dx_dt, param, start, stop):
 	hyperbol =  (2 / v) * (np.sqrt((x0-x[start:stop])**2 + z0**2) - r) 
 	
 	plt.plot(x[start:stop], hyperbol)
-	plot_radargrams(data, dx_dt, 'velocity_analysis')
+	plot_radargram(data, dx_dt, 'velocity_analysis')
 
 def stolt_migration(data, dx_dt, c):
 	

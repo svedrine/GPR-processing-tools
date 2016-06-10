@@ -4,7 +4,7 @@ import h5py
 import binascii
 
 
-def plot_radargrams (data, dx_dt, title):
+def plot_radargram (data, dx_dt, title):
 	
 	dx, dt = dx_dt
 	iterations, traces = data.shape
@@ -71,12 +71,14 @@ def read_hdf5 (path, filename):
 
 def read_rd3 (path, filename):
 	
+	""" a modifier """
 	f = open('%s%s' % (path, filename), 'rb').read()
 	f.decode("latin-1")
 	
 	data = np.array(np.fromstring(f, dtype= 'int16'))
-	traces = int(np.shape(data)[0] / 1024)
-	data = data.reshape((traces, 1024))
+	iterations, traces = data.shape
+	traces = int(np.shape(data)[0] / iterations)
+	data = data.reshape((traces, iterations)
 	
 	return data.T
 	
