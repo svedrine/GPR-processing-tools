@@ -6,9 +6,11 @@ import binascii
 
 def plot_radargram (data, dx_dt, title):
 	
+	""" Plot B-scan """
+	
 	dx, dt = dx_dt
-	iterations, traces = data.shape
-	t = np.linspace(0, 1, iterations) * (iterations * dt)
+	samples, traces = data.shape
+	t = np.linspace(0, 1, samples) * (samples * dt)
 	x = np.linspace(0, 1, traces) * (traces * dx)	
 	
 	fig = plt.figure(num=title, figsize=(20, 10), facecolor='w', edgecolor='w')
@@ -18,7 +20,7 @@ def plot_radargram (data, dx_dt, title):
 	
 	plt.show()
 	
-def nextpower (n, base=2.0):
+def nextpower (n, base = 2.0):
     """Return the next integral power of two greater than the given number.
     Specifically, return m such that
         m >= n
@@ -57,47 +59,44 @@ def read_hdf5 (path, filename):
 	f = h5py.File('%s%s' % (path, filename), 'r')
 	path = '/rxs/rx1/'
 	modelruns = f.attrs['Modelruns']
-	iterations = f.attrs['Iterations'] 
+	samples = f.attrs['Iterations'] 
 	dt = f.attrs['dt']*1e9
 	positions = f.attrs['Positions'][:,0,0]
 	dx = np.diff(positions)[0]
-	data = np.ones((iterations, modelruns))
+	data = np.ones((samples, modelruns))
 	for model in range(modelruns):
 		data[:,model] = f['%s%s' % (path, 'Ez')][:,model]
-	traces = modelruns	
-	dx_dt = (iterations, traces, dx, dt)
-	
-	return data, dx_dt
 
-def read_rd3 (path, filename):
+	return data, (dx, dt)
+
+def read_ramac (path, filename):
 	
-	""" a modifier """
-	f = open('%s%s' % (path, filename), 'rb').read()
-	f.decode("latin-1")
+	""" Read .rad and .rd3 files and retrun a 2D dataset along with steps (dx (m), dt(ns)) """
 	
-	data = np.array(np.fromstring(f, dtype= 'int16'))
-	iterations, traces = data.shape
-	traces = int(np.shape(data)[0] / iterations)
-	data = data.reshape((traces, iterations)
-	
-	return data.T
-	
-def read_header(path, filename):
-	
-	""" return dt (ns) and dx (m) """
-	
-	f = open('%s%s' %(path, filename), 'r')
+	# Read header
+	f = open('%s%s%s' %(path, filename, '.rad'), 'r')
 	mylist = f.read().split('\n')
+	f.close()
 	
-	iterations = int(mylist[0].split(':')[1])
+	samples = int(mylist[0].split(':')[1])
 	frequency = float(mylist[1].split(':')[1])*1e-3
 	traces = int(mylist[22].split(':')[1])
-	position = float(mylist[23].split(':')[1])
+	distance = float(mylist[23].split(':')[1])
 	
 	dt = 1 / frequency
-	dx = position / traces
+	dx = distance / traces
 	
-	return (dx, dt)
+	# Read data
+	f = open('%s%s%s' % (path, filename, '.rd3'), 'rb')
+	mylist = f.read()
+
+	data = np.array(np.fromstring(mylist, dtype= 'int16'))
+	traces = int(np.shape(data)[0] / samples)
+	data = data.reshape((traces, samples))
+	
+	return data.T, (dx,dt)
+
+
 	
 
 
