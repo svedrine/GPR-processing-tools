@@ -5,21 +5,23 @@ from scipy.interpolate import griddata, SmoothBivariateSpline
 from functions import *
 
 
-def dewow_filtering(data, dx_dt, time_window):
+def mean_filter(data, dx_dt, time_window):
+	
+	""" Remove the DC bias by using a mean filter. time_window (ns)"""
 	
 	dx, dt = dx_dt
-	iterations, traces = data.shape
-	t = np.linspace(0, 1, iterations) * (dt * iterations)
+	samples, traces = data.shape
+	t = np.linspace(0, 1, samples) * (dt * samples)
 	width = int(time_window / dt)
 	half_width = int(width / 2)
-	temp = np.ones((iterations, traces))
+	temp = np.ones((samples, traces))
 	temp *= data
 	for trace in range(traces):
-		for index in range(iterations):
+		for index in range(samples):
 			if index < half_width:
 				data[index,trace] += -np.mean(abs(temp[:index + half_width, trace]))
 				
-			elif index > (iterations - half_width):
+			elif index > (samples - half_width):
 				data[index,trace] += -np.mean(abs(temp[index-half_width:]))
 			else:
 				data[index,trace] += -np.mean(abs(temp[index-half_width:index+half_width, trace]))
@@ -27,32 +29,52 @@ def dewow_filtering(data, dx_dt, time_window):
 	return data
 		
 def dc_substraction (data):
+	
+	""" Remove the DC bias by using a simple substraction of the DC offset"""
+	
 	return data - np.mean(abs(data[int(0.67*len(data))]))	
 	
-def cut_off_frequency(data, bandwidth):
-	return 0
+def cut_off_frequency(data, dx_dt, fc = 0.0):
 	
-def time_zero (data, dx_dt, t0=0.0):
-	"""Reshape start time of your radargrams at t0 """
-
+	""" Remove the DC bias by using Fast Fourier Transform. fc (MHz) must be bellow the bandwidth of the recorded data  ~ 10 MHz """
+	
 	dx, dt = dx_dt
-	iterations, traces = data.shape
-	t = np.linspace(0, 1, iterations) * (iterations * dt)
+	samples, traces = data.shape
+	
+	index = int(fc * dt)
+	
+	fftdata = np.fft.fft2(data)
+	for trace in range(traces):
+		fit = np.diff(fftdata.real[index:index+2, trace]) * [range(index)]
+		fftdata.real[:index, trace] = fit
+		
+	data = np.fft.ifft2(fftdata)
+
+	return data.real
+	
+def time_zero (data, dx_dt, t0 = 0.0):
+	
+	"""Replaces the start time of your radargrams by t0 (ns), retrun a new 2D dataset reshaped"""
+	
+	dx, dt = dx_dt
+	samples, traces = data.shape
+	t = np.linspace(0, 1, samples) * (samples * dt)
 	index = int(t0 / dt)
 
 	return data[index:]
 		
-def user_gain (data, dx_dt, gain='', start=0.0, stop=0.0):
+def user_gain (data, dx_dt, gain, time_window):
+	
 	"""Add a user defined gain chosen beetween {'constant', 'linear', 'enxponential'} on data.
-	start and stop define the number of traces you want to modify.
+	time_window is a tuple (start (ns) , stop (ns) )
 	"""
 	dx, dt = dx_dt
-	iterations, traces = data.shape
-	t = np.linspace(0, 1, iterations) * (iterations * dt)
+	samples, traces = data.shape
+	t = np.linspace(0, 1, samples) * (samples * dt)
+	start, stop = time_window
 	
 	start = int(start / dt)
 	stop = int(stop / dt)
-	
 	width = stop - start
 	
 	if gain == 'constant':
@@ -76,10 +98,12 @@ def user_gain (data, dx_dt, gain='', start=0.0, stop=0.0):
 		
 	for model in range(traces):
 		data[start:stop, model] *= np.array(fgain, dtype=data.dtype)
+	
+	return data
 
 def velocity_analysis (data, dx_dt, param, start, stop):
 	"""
-	Plot the radargram along with the hyperbolic function initialized by x0,t0,c and r.
+	Plot the radargram along with the hyperbolic function initialized by a tuple = (x0 (m), t0 (ns), c (m/ns), r (m)).
 	"""
 
 	traces = data.shape[1]	
@@ -134,7 +158,7 @@ def stolt_migration(data, dx_dt, c):
 	mig = np.fft.ifft2(np.fft.ifftshift(fftdata))
 	mig = mig[1:nt0,1:nx0]
 	
-	z = t*c / 2
+	z = t * c / 2
 	
 	fig = plt.figure(num='migrated_data', figsize=(20, 10), facecolor='w', edgecolor='w')
 	plt.imshow(abs(mig), extent=[np.amin(x), np.amax(x), np.amax(z), np.amin(z)], interpolation='nearest', aspect='auto', cmap='seismic', vmin=-np.amax(abs(mig)), vmax=np.amax(abs(mig)))
