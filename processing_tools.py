@@ -109,11 +109,11 @@ def velocity_analysis (data, dx_dt, param, width):
 	samples, traces = data.shape
 	dx, dt = dx_dt
 	x0, t0, v, r = param
-	print(dx)
+
 	mid = int(x0 / dx)
 	start = int(mid - width / (2 * dx))
 	stop = int(mid + width / (2 * dx))
-	print(start, stop)
+	
 	z0 = (t0 * v + 2 * r) / 2
 	x = np.linspace(0, 1, traces) * (traces * dx)
 	t = np.linspace(0, 1, samples) * (samples * dt)
